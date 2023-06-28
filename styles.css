@@ -1,0 +1,45 @@
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+}
+
+#container {
+  text-align: center;
+}
+
+h1 {
+  color: #333;
+}
+
+#filter {
+  margin-bottom: 20px;
+}
+
+select {
+  font-size: 14px;
+  padding: 5px;
+}
+
+#chart {
+  margin: 0 auto;
+}
+
+.circle {
+  stroke: #fff;
+  stroke-width: 2;
+  cursor: pointer;
+}
+
+#tooltip {
+  display: none;
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 10px;
+  border-radius: 5px;
+  font-size: 14px;
+  pointer-events: none;
+}

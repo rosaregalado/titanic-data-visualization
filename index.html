@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Titanic Passengers</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="container">
+    <h1>Titanic Passengers Survival Rates</h1>
+
+    <!-- filter passengers data by gender, class, age group -->
+    <div id="filter">
+      <label for="gender-select">Gender:</label>
+      <select id="gender-select">
+        <option value="all">All</option>
+        <option value="male">Male</option>
+        <option value="female">Female</option>
+      </select>
+
+      <label for="class-select">Class:</label>
+      <select id="class-select">
+        <option value="all">All</option>
+        <option value="1">First Class</option>
+        <option value="2">Second Class</option>
+        <option value="3">Third Class</option>
+      </select>
+
+      <label for="age-group-select">Age Group:</label>
+      <select id="age-group-select">
+        <option value="all">All</option>
+        <option value="Children">Children</option>
+        <option value="Teenagers">Teenagers</option>
+        <option value="Adults">Adults</option>
+        <option value="Seniors">Seniors</option>
+      </select>
+    </div>
+
+    <div id="chart"></div>
+    <div id="tooltip"></div>
+  </div>
+
+  <script>
+    // get data from titanic dataset
+    d3.json('titanic-data.json')
+      .then(dataset => {
+        const data = dataset.map(entry => {
+          return {
+            age: entry.fields.age,
+            survived: entry.fields.survived === 'Yes',
+            sex: entry.fields.sex,
+            pclass: entry.fields.pclass
+          };
+        });
+
+        // helper functions: ------------------------------------------------------------------------
+
+        // filter the data based on gender, class, and age group
+        function filterData(gender, pclass, ageGroup) {
+          return data.filter(entry => {
+            if (gender !== 'all' && entry.sex !== gender) {
+              return false;
+            }
+            if (pclass !== 'all' && entry.pclass !== parseInt(pclass)) {
+              return false;
+            }
+            if (ageGroup !== 'all' && getAgeGroup(entry.age) !== ageGroup) {
+              return false;
+            }
+            return true;
+          });
+        }
+
+        // calculate passenger age group
+        function getAgeGroup(age) {
+          if (age < 18) {
+            return 'Children';
+          } else if (age < 19) {
+            return 'Teenagers';
+          } else if (age < 60) {
+            return 'Adults';
+          } else {
+            return 'Seniors';
+          }
+        }
+
+        // create the SVG container
+        const svg = d3.select('#chart')
+          .append('svg')
+          .attr('width', 600)
+          .attr('height', 400);
+
+        // x scale
+        const xScale = d3.scaleBand()
+          .domain(['Children', 'Teenagers', 'Adults', 'Seniors'])
+          .range([50, 550])
+          .padding(0.1);
+
+        // Y scale
+        const yScale = d3.scaleLinear()
+          .domain([0, 1])
+          .range([350, 50]);
+
+        // show the tooltip
+        function showTooltip(event, d) {
+          const tooltip = d3.select('#tooltip');
+          const tooltipWidth = tooltip.node().offsetWidth;
+          const tooltipHeight = tooltip.node().offsetHeight;
+          const tooltipLeft = event.pageX + 10;
+          const tooltipTop = event.pageY - tooltipHeight - 10;
+
+          tooltip.style('display', 'block')
+            .html(`Age Group: ${d.ageGroup}<br>Survival Rate: ${(d.survivalRate * 100).toFixed(2)}%`)
+            .style('left', `${tooltipLeft}px`)
+            .style('top', `${tooltipTop}px`);
+        }
+
+        // hide the tooltip
+        function hideTooltip() {
+          const tooltip = d3.select('#tooltip');
+          tooltip.style('display', 'none');
+        }
+
+        // ----------------------------------------------------------------------------------
+
+        // update the chart based on the selected filters
+        function updateChart() {
+          const selectedGender = d3.select('#gender-select').property('value');
+          const selectedClass = d3.select('#class-select').property('value');
+          const selectedAgeGroup = d3.select('#age-group-select').property('value');
+
+          // filter the data based on the selected filters
+          const filteredData = filterData(selectedGender, selectedClass, selectedAgeGroup);
+
+          // calculate the survival rate for each age group
+          const nestedData = d3.groups(filteredData, d => getAgeGroup(d.age));
+          const survivalRateByAgeGroup = nestedData.map(([ageGroup, entries]) => {
+            const total = entries.length;
+            const survived = entries.filter(d => d.survived).length;
+            return {
+              ageGroup,
+              survivalRate: survived / total
+            };
+          });
+
+          // create the circles in the scatter plot
+          const circles = svg.selectAll('.circle')
+            .data(survivalRateByAgeGroup);
+
+          // add colors to the circles
+          const colorScale = d3.scaleOrdinal()
+            .domain(['Children', 'Teenagers', 'Adults', 'Seniors'])
+            .range(['tomato', 'gold', 'lime', 'cornflowerblue']);
+
+          // create circles
+          circles.enter()
+            .append('circle')
+            .attr('class', 'circle')
+            .attr('cx', d => xScale(d.ageGroup) + xScale.bandwidth() / 2)
+            .attr('cy', 350)
+            .attr('r', 7)
+            .style('fill', d => colorScale(d.ageGroup))
+            .on('mouseover', showTooltip)
+            .on('mouseout', hideTooltip)
+            .transition()
+            .duration(500)
+            .attr('cy', d => yScale(d.survivalRate));
+
+          // move circles
+          circles.transition()
+            .duration(500)
+            .attr('cx', d => xScale(d.ageGroup) + xScale.bandwidth() / 2)
+            .attr('cy', d => yScale(d.survivalRate))
+            .style('fill', d => colorScale(d.ageGroup));
+
+          // remove circles
+          circles.exit()
+            .transition()
+            .duration(500)
+            .attr('r', 0)
+            .attr('cy', 350)
+            .remove();
+
+          // x-axis
+          svg.select('.x-axis').remove();
+          svg.append('g')
+            .attr('class', 'x-axis')
+            .attr('transform', `translate(0, ${350})`)
+            .call(d3.axisBottom(xScale));
+
+          // y-axis
+          svg.select('.y-axis').remove();
+          svg.append('g')
+            .attr('class', 'y-axis')
+            .attr('transform', 'translate(50, 0)')
+            .call(d3.axisLeft(yScale).tickFormat(d3.format('.0%')));
+        }
+
+        // event listeners for filters
+        d3.select('#gender-select').on('change', updateChart);
+        d3.select('#class-select').on('change', updateChart);
+        d3.select('#age-group-select').on('change', updateChart);
+
+        // update scatter plot
+        updateChart();
+      })
+      .catch(error => console.error(error));
+  </script>
+</body>
+</html>
